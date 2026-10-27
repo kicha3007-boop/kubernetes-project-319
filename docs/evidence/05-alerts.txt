@@ -1,0 +1,22 @@
+# Проверка алертов: остановлен PostgreSQL (kind, 2026-10-27 15:23)
+# 15:10:08 kubectl -n bulletin-db scale sts/postgres --replicas=0; трафик — scripts/probe.sh через ingress.
+# Запросы ждут соединение из пула Hikari 30 с и завершаются 500 -> растут доля 5xx и p95.
+
+$ curl -s http://prometheus.localhost:18080/api/v1/alerts   # алерты приложения
+BulletinBoardHighLatencyP95      state=firing   severity=warning activeAt=2026-10-27T12:11:57 value=30.000
+BulletinBoardHigh5xxRate         state=firing   severity=critical activeAt=2026-10-27T12:12:12 value=1.000
+
+$ curl -s http://alertmanager.localhost:18080/api/v2/alerts
+BulletinBoardHighLatencyP95      active   p95 latency API выше 0.5 с
+BulletinBoardHigh5xxRate         active   Доля ответов 5xx приложения выше 5%
+Watchdog                         active   An alert that should always be firing to certify that Alertmanager is working properly.
+
+# 15:23 PostgreSQL возвращён (replicas=1); приложение восстановилось без перезапуска подов:
+$ kubectl -n bulletin-db scale sts/postgres --replicas=1
+$ curl -H "Host: bulletin-board.localhost" http://127.0.0.1:18080/api/bulletins?perPage=1
+HTTP 200
+
+$ kubectl -n bulletin-board get pods
+NAME                              READY   STATUS    RESTARTS   AGE
+bulletin-board-6c59bbfdfb-qpvqb   1/1     Running   0          17m
+bulletin-board-6c59bbfdfb-r7t4k   1/1     Running   0          18m

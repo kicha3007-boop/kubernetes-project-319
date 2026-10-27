@@ -1,0 +1,30 @@
+# helm rollback под нагрузкой (kind, 2026-10-27 15:02)
+
+$ helm -n bulletin-board history bulletin-board
+REVISION	UPDATED                 	STATUS    	CHART               	APP VERSION	DESCRIPTION     
+1       	Tue Oct 27 14:57:59 2026	superseded	bulletin-board-1.0.0	1.0.0      	Install complete
+2       	Tue Oct 27 14:59:47 2026	deployed  	bulletin-board-1.0.0	1.0.0      	Upgrade complete
+
+$ kubectl -n bulletin-board get deploy bulletin-board -o jsonpath="{.spec.template.spec.containers[0].image}"
+ghcr.io/kicha3007-boop/bulletin-board:1.0.1
+
+$ helm -n bulletin-board rollback bulletin-board 1 --wait
+Rollback was a success! Happy Helming!
+
+$ kubectl -n bulletin-board rollout status deploy/bulletin-board
+deployment "bulletin-board" successfully rolled out
+
+$ helm -n bulletin-board history bulletin-board
+REVISION	UPDATED                 	STATUS    	CHART               	APP VERSION	DESCRIPTION     
+1       	Tue Oct 27 14:57:59 2026	superseded	bulletin-board-1.0.0	1.0.0      	Install complete
+2       	Tue Oct 27 14:59:47 2026	superseded	bulletin-board-1.0.0	1.0.0      	Upgrade complete
+3       	Tue Oct 27 15:02:28 2026	deployed  	bulletin-board-1.0.0	1.0.0      	Rollback to 1   
+
+$ kubectl -n bulletin-board get deploy bulletin-board -o jsonpath="{.spec.template.spec.containers[0].image}"
+ghcr.io/kicha3007-boop/bulletin-board:1.0.0
+
+# Параллельно опрос через ingress (100 с):
+$ scripts/probe.sh http://127.0.0.1:18080/api/bulletins 100 probe.log bulletin-board.localhost
+Запросов: 420
+  HTTP 200: 420
+Ошибок нет

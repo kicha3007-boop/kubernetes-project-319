@@ -1,0 +1,84 @@
+# Состояние Helm-релиза в kind (2026-10-27 15:30)
+
+$ helm list -A
+NAME            	NAMESPACE       	REVISION	UPDATED                              	STATUS  	CHART                        	APP VERSION
+bulletin-board  	bulletin-board  	4       	2026-10-27 15:09:45.8003319 +0300 MSK	deployed	bulletin-board-1.0.0         	1.0.0      
+external-secrets	external-secrets	1       	2026-10-27 14:47:38.4434426 +0300 MSK	deployed	external-secrets-2.14.0      	v2.14.0    
+ingress-nginx   	ingress-nginx   	2       	2026-10-27 14:57:33.4999644 +0300 MSK	deployed	ingress-nginx-4.15.1         	1.15.1     
+kps             	monitoring      	1       	2026-10-27 14:54:42.3533924 +0300 MSK	deployed	kube-prometheus-stack-92.14.0	v0.94.2    
+metrics-server  	kube-system     	1       	2026-10-27 14:43:18.9714578 +0300 MSK	deployed	metrics-server-3.14.0        	0.9.0      
+reloader        	reloader        	1       	2026-10-27 14:48:31.6016913 +0300 MSK	deployed	reloader-2.2.18              	v1.4.22    
+
+$ helm -n bulletin-board history bulletin-board
+REVISION	UPDATED                 	STATUS    	CHART               	APP VERSION	DESCRIPTION     
+1       	Tue Oct 27 14:57:59 2026	superseded	bulletin-board-1.0.0	1.0.0      	Install complete
+2       	Tue Oct 27 14:59:47 2026	superseded	bulletin-board-1.0.0	1.0.0      	Upgrade complete
+3       	Tue Oct 27 15:02:28 2026	superseded	bulletin-board-1.0.0	1.0.0      	Rollback to 1   
+4       	Tue Oct 27 15:09:45 2026	deployed  	bulletin-board-1.0.0	1.0.0      	Upgrade complete
+
+$ helm -n bulletin-board test bulletin-board
+NAME: bulletin-board
+LAST DEPLOYED: Tue Oct 27 15:09:45 2026
+NAMESPACE: bulletin-board
+STATUS: deployed
+REVISION: 4
+DESCRIPTION: Upgrade complete
+TEST SUITE:     bulletin-board-test
+Last Started:   Tue Oct 27 15:30:25 2026
+Last Completed: Tue Oct 27 15:30:36 2026
+Phase:          Succeeded
+
+$ kubectl -n bulletin-board get all,ingress,pdb,cm,secret,externalsecret,secretstore,servicemonitor,prometheusrule
+NAME                                  READY   STATUS    RESTARTS   AGE
+pod/bulletin-board-6c59bbfdfb-bwfjm   1/1     Running   0          5m3s
+pod/bulletin-board-6c59bbfdfb-c6vpg   1/1     Running   0          5m3s
+pod/bulletin-board-6c59bbfdfb-pxpdh   1/1     Running   0          5m3s
+pod/bulletin-board-6c59bbfdfb-qpvqb   1/1     Running   0          24m
+pod/bulletin-board-6c59bbfdfb-r7t4k   1/1     Running   0          24m
+
+NAME                     TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)           AGE
+service/bulletin-board   ClusterIP   10.96.105.38   <none>        80/TCP,9090/TCP   32m
+
+NAME                             READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/bulletin-board   5/5     5            5           32m
+
+NAME                                        DESIRED   CURRENT   READY   AGE
+replicaset.apps/bulletin-board-6c59bbfdfb   5         5         5       24m
+replicaset.apps/bulletin-board-769dfb59f8   0         0         0       30m
+replicaset.apps/bulletin-board-fbf4d7c4c    0         0         0       32m
+
+NAME                                                 REFERENCE                   TARGETS       MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/bulletin-board   Deployment/bulletin-board   cpu: 2%/70%   2         5         5          32m
+
+NAME                                       CLASS   HOSTS                      ADDRESS         PORTS   AGE
+ingress.networking.k8s.io/bulletin-board   nginx   bulletin-board.localhost   10.96.213.157   80      32m
+
+NAME                                        MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
+poddisruptionbudget.policy/bulletin-board   1               N/A               4                     32m
+
+NAME                                 DATA   AGE
+configmap/bulletin-board-config      12     32m
+configmap/bulletin-board-dashboard   1      32m
+configmap/kube-root-ca.crt           1      32m
+
+NAME                                          TYPE                 DATA   AGE
+secret/bulletin-board-secrets                 Opaque               4      32m
+secret/sh.helm.release.v1.bulletin-board.v1   helm.sh/release.v1   1      32m
+secret/sh.helm.release.v1.bulletin-board.v2   helm.sh/release.v1   1      30m
+secret/sh.helm.release.v1.bulletin-board.v3   helm.sh/release.v1   1      28m
+secret/sh.helm.release.v1.bulletin-board.v4   helm.sh/release.v1   1      20m
+
+NAME                                                STORETYPE     STORE            REFRESH INTERVAL   STATUS         READY   LAST SYNC
+externalsecret.external-secrets.io/bulletin-board   SecretStore   bulletin-board   15s                SecretSynced   True    3s
+
+NAME                                             AGE   STATUS   CAPABILITIES   READY
+secretstore.external-secrets.io/bulletin-board   32m   Valid    ReadWrite      True
+
+NAME                                                  AGE
+servicemonitor.monitoring.coreos.com/bulletin-board   32m
+
+NAME                                                  AGE
+prometheusrule.monitoring.coreos.com/bulletin-board   32m
+
+$ curl -s -o /dev/null -w "%{http_code}" http://bulletin-board.localhost:18080/   # UI
+HTTP 200

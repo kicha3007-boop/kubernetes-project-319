@@ -1,0 +1,32 @@
+$ kubectl get nodes
+NAME                 STATUS   ROLES           AGE     VERSION
+p319-control-plane   Ready    control-plane   5m28s   v1.37.0
+p319-worker          Ready    <none>          5m17s   v1.37.0
+p319-worker2         Ready    <none>          5m17s   v1.37.0
+
+$ kubectl -n bulletin-board get pods,svc,ingress,pdb,hpa -o wide
+NAME                                 READY   STATUS    RESTARTS   AGE   IP           NODE           NOMINATED NODE   READINESS GATES
+pod/bulletin-board-59cd6b5bf-l54pr   1/1     Running   0          41s   10.244.2.7   p319-worker    <none>           <none>
+pod/bulletin-board-59cd6b5bf-rzlm8   1/1     Running   0          41s   10.244.1.2   p319-worker2   <none>           <none>
+
+NAME                     TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)           AGE   SELECTOR
+service/bulletin-board   ClusterIP   10.96.163.247   <none>        80/TCP,9090/TCP   53s   app.kubernetes.io/name=bulletin-board
+
+NAME                                       CLASS   HOSTS                      ADDRESS   PORTS   AGE
+ingress.networking.k8s.io/bulletin-board   nginx   bulletin-board.localhost             80      41s
+
+NAME                                        MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
+poddisruptionbudget.policy/bulletin-board   1               N/A               1                     53s
+
+NAME                                                 REFERENCE                   TARGETS              MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/bulletin-board   Deployment/bulletin-board   cpu: <unknown>/70%   2         5         2          41s
+
+$ kubectl -n bulletin-board rollout status deploy/bulletin-board
+deployment "bulletin-board" successfully rolled out
+
+$ kubectl -n bulletin-board port-forward svc/bulletin-board 18085:80 & curl http://127.0.0.1:18085/api/bulletins?perPage=1
+{"data":[{"id":20,"title":"Clouds of Witness","description":"Ratione suscipit molestiae porro. Iure minus amet odit illum accusamus modi. Omnis suscipit quam vel temporibus qui eius ea. Alias rerum el
+HTTP 200
+
+$ curl -H 'Host: bulletin-board.localhost' http://127.0.0.1:18080/api/bulletins   (через ingress-nginx)
+HTTP 200

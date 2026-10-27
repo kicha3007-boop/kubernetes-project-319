@@ -1,0 +1,32 @@
+# Релиз 1.1.0 (исправлен UI) через Makefile, под нагрузкой (kind, 2026-10-27 15:39)
+
+$ make helm-install ENV=local TAG=1.1.0
+helm upgrade --install bulletin-board k8s/bulletin-board -n bulletin-board --create-namespace \
+  -f k8s/bulletin-board/values-local.yaml --set image.tag=1.1.0  --wait --timeout 10m
+Release "bulletin-board" has been upgraded. Happy Helming!
+NAME: bulletin-board
+LAST DEPLOYED: Tue Oct 27 15:39:36 2026
+NAMESPACE: bulletin-board
+STATUS: deployed
+REVISION: 5
+kubectl -n bulletin-board rollout status deploy/bulletin-board --timeout=300s
+deployment "bulletin-board" successfully rolled out
+
+# Параллельно опрос через ingress (150 с):
+$ scripts/probe.sh http://127.0.0.1:18080/api/bulletins 150 probe.log bulletin-board.localhost
+Запросов: 572
+  HTTP 200: 572
+Ошибок нет
+
+$ make helm-history
+REVISION	UPDATED                 	STATUS    	CHART               	APP VERSION	DESCRIPTION     
+1       	Tue Oct 27 14:57:59 2026	superseded	bulletin-board-1.0.0	1.0.0      	Install complete
+2       	Tue Oct 27 14:59:47 2026	superseded	bulletin-board-1.0.0	1.0.0      	Upgrade complete
+3       	Tue Oct 27 15:02:28 2026	superseded	bulletin-board-1.0.0	1.0.0      	Rollback to 1   
+4       	Tue Oct 27 15:09:45 2026	superseded	bulletin-board-1.0.0	1.0.0      	Upgrade complete
+5       	Tue Oct 27 15:39:36 2026	deployed  	bulletin-board-1.1.0	1.1.0      	Upgrade complete
+
+$ kubectl -n bulletin-board get pods -o wide
+NAME                              READY   STATUS    RESTARTS   AGE     IP            NODE           NOMINATED NODE   READINESS GATES
+bulletin-board-7d785c86bf-bp4zk   1/1     Running   0          112s    10.244.1.16   p319-worker2   <none>           <none>
+bulletin-board-7d785c86bf-nh9jq   1/1     Running   0          2m34s   10.244.2.22   p319-worker    <none>           <none>

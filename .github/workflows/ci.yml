@@ -1,0 +1,98 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  terraform:
+    name: Terraform fmt / validate / tflint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v5
+      - uses: hashicorp/setup-terraform@v3
+      - name: terraform fmt
+        run: terraform fmt -check -recursive -diff
+      - name: terraform init (без бекенда)
+        run: terraform init -backend=false -input=false
+      - name: terraform validate
+        run: terraform validate
+      - uses: terraform-linters/setup-tflint@v4
+      - name: tflint
+        run: |
+          printf 'plugin "terraform" {\n  enabled = true\n}\n' > /tmp/.tflint.hcl
+          tflint --config /tmp/.tflint.hcl --recursive
+
+  kubernetes:
+    name: Helm lint / template / kubeconform
+    runs-on: ubuntu-latest
+    env:
+      KUBECONFORM_VERSION: 0.8.0
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+      - name: Установить kubeconform
+        run: |
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin kubeconform
+      - name: helm lint
+        run: make helm-lint
+      - name: helm template + kubeconform (local, yc)
+        run: |
+          helm template bulletin-board k8s/bulletin-board -n bulletin-board -f k8s/bulletin-board/values-local.yaml > /tmp/local.yaml
+          helm template bulletin-board k8s/bulletin-board -n bulletin-board -f k8s/bulletin-board/values-yc.yaml \
+            --set externalSecrets.yandexlockbox.lockboxSecretId=placeholder > /tmp/yc.yaml
+          # CRD (ExternalSecret, ServiceMonitor, PrometheusRule) проверяются по схемам из datree/CRDs-catalog
+          kubeconform -strict -summary \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/local.yaml /tmp/yc.yaml
+      - name: kubeconform для чистых манифестов
+        run: kubeconform -strict -summary k8s/manifests k8s/local
+
+  image:
+    name: Docker image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/bulletin-board
+          tags: |
+            type=sha,format=short
+            type=semver,pattern={{version}}
+      # Публикация в GHCR — только по тегу v* (токен GITHUB_TOKEN, секреты не нужны)
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Сборка образа
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

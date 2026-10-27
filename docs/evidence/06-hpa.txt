@@ -1,0 +1,39 @@
+# HPA под нагрузкой (kind, 2026-10-27 15:30)
+# Нагрузка: под loadgen в namespace bulletin-board, 12 параллельных циклов curl к Service 5 минут:
+#   kubectl -n bulletin-board run loadgen --image=mirror.gcr.io/curlimages/curl:8.11.1 --restart=Never --command -- sh -c '...'
+# Наблюдение: kubectl -n bulletin-board get hpa bulletin-board (TARGETS MINPODS MAXPODS REPLICAS) каждые 20 с
+15:24:43 cpu: 3%/70% 2 5 2
+15:25:03 cpu: 204%/70% 2 5 2
+15:25:24 cpu: 254%/70% 2 5 2
+15:25:44 cpu: 244%/70% 2 5 2
+15:26:04 cpu: 242%/70% 2 5 5      <- после окна стабилизации scale-up (60 с) HPA поднял до maxReplicas
+15:26:26 cpu: 55%/70% 2 5 5
+15:27:28 cpu: 89%/70% 2 5 5
+15:28:30 cpu: 80%/70% 2 5 5
+15:29:51 cpu: 52%/70% 2 5 5
+
+$ kubectl -n bulletin-board describe hpa bulletin-board | sed -n "/Events/,$p"
+Events:
+  Type     Reason                        Age                From                       Message
+  ----     ------                        ----               ----                       -------
+  Normal   SuccessfulRescale             32m                horizontal-pod-autoscaler  New size: 2; reason: Current number of replicas below Spec.MinReplicas
+  Warning  FailedGetResourceMetric       26m (x4 over 31m)  horizontal-pod-autoscaler  failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+  Warning  FailedComputeMetricsReplicas  26m (x4 over 31m)  horizontal-pod-autoscaler  invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+  Normal   SuccessfulRescale             4m32s              horizontal-pod-autoscaler  New size: 5; reason: cpu resource utilization (percentage of request) above target
+
+$ kubectl -n bulletin-board get pods -o wide
+NAME                              READY   STATUS      RESTARTS   AGE     IP            NODE           NOMINATED NODE   READINESS GATES
+bulletin-board-6c59bbfdfb-bwfjm   1/1     Running     0          4m32s   10.244.1.14   p319-worker2   <none>           <none>
+bulletin-board-6c59bbfdfb-c6vpg   1/1     Running     0          4m32s   10.244.2.21   p319-worker    <none>           <none>
+bulletin-board-6c59bbfdfb-pxpdh   1/1     Running     0          4m32s   10.244.2.20   p319-worker    <none>           <none>
+bulletin-board-6c59bbfdfb-qpvqb   1/1     Running     0          23m     10.244.1.13   p319-worker2   <none>           <none>
+bulletin-board-6c59bbfdfb-r7t4k   1/1     Running     0          24m     10.244.2.17   p319-worker    <none>           <none>
+loadgen                           0/1     Completed   0          5m45s   10.244.2.19   p319-worker    <none>           <none>
+
+$ kubectl top pods -n bulletin-board
+NAME                              CPU(cores)   MEMORY(bytes)   
+bulletin-board-6c59bbfdfb-bwfjm   3m           407Mi           
+bulletin-board-6c59bbfdfb-c6vpg   130m         404Mi           
+bulletin-board-6c59bbfdfb-pxpdh   91m          346Mi           
+bulletin-board-6c59bbfdfb-qpvqb   19m          387Mi           
+bulletin-board-6c59bbfdfb-r7t4k   6m           393Mi           
