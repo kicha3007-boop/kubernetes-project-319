@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bulletin-board
+  namespace: bulletin-board
+  labels:
+    app.kubernetes.io/name: bulletin-board
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  # Zero-downtime: новый под поднимается раньше, чем гасится старый (maxUnavailable: 0),
+  # и получает трафик только после readinessProbe.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bulletin-board
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bulletin-board
+    spec:
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      # Разносим реплики по разным нодам
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: bulletin-board
+      containers:
+        - name: app
+          image: ghcr.io/kicha3007-boop/bulletin-board:1.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management
+              containerPort: 9090
+          envFrom:
+            - configMapRef:
+                name: bulletin-board-config
+            - secretRef:
+                name: bulletin-board-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 384Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          # Пока Spring стартует (до ~60 с при лимите в 1 CPU), liveness не проверяется
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: management
+            periodSeconds: 5
+            failureThreshold: 30
+          # readiness = UP только после поднятия контекста и подключения к БД
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: management
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: management
+            periodSeconds: 10
+            failureThreshold: 3
+          # Пока endpoints и ingress-nginx убирают под из балансировки, он ещё отвечает
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

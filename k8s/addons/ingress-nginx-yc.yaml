@@ -1,0 +1,26 @@
+# ingress-nginx для Managed Kubernetes: Service типа LoadBalancer -> сетевой балансировщик
+# Yandex Cloud с публичным IP. Две реплики контроллера на разных нодах.
+controller:
+  replicaCount: 2
+  service:
+    type: LoadBalancer
+    externalTrafficPolicy: Local
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: controller
+  ingressClassResource:
+    default: true
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi

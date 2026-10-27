@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bulletin-board
+  namespace: bulletin-board
+  labels:
+    app.kubernetes.io/name: bulletin-board
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: bulletin-board
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+    - name: management
+      port: 9090
+      targetPort: management

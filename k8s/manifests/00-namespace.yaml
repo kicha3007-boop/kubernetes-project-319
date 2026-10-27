@@ -1,0 +1,8 @@
+# Базовые манифесты (шаги 3–4) — то же, что рендерит Helm-чарт k8s/bulletin-board,
+# но без шаблонов: kubectl apply -f k8s/manifests/  (make k8s-apply)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bulletin-board
+  labels:
+    app.kubernetes.io/part-of: bulletin-board

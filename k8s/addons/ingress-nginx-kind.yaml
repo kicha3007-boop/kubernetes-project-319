@@ -1,0 +1,28 @@
+# ingress-nginx для kind: контроллер на control-plane, слушает hostPort 80/443
+# (на хост они проброшены как 18080/18443, см. k8s/kind/cluster.yaml).
+controller:
+  kind: Deployment
+  replicaCount: 1
+  hostPort:
+    enabled: true
+  service:
+    type: NodePort
+  nodeSelector:
+    ingress-ready: "true"
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  ingressClassResource:
+    default: true
+  # Метрики контроллера (запросы, коды ответов, latency) для Prometheus
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false   # включается в make monitoring-install после установки CRD
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+  admissionWebhooks:
+    enabled: true

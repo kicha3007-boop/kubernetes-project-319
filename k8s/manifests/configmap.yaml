@@ -1,0 +1,23 @@
+# Несекретная конфигурация приложения. Значения указывают на локальный стенд (kind):
+# PostgreSQL из k8s/local/postgres.yaml. Для облака используйте Helm-чарт с values-yc.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bulletin-board-config
+  namespace: bulletin-board
+  labels:
+    app.kubernetes.io/name: bulletin-board
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8080"
+  MANAGEMENT_SERVER_PORT: "9090"
+  SERVER_SHUTDOWN: "graceful"
+  SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: "20s"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.bulletin-db.svc.cluster.local:5432/bulletins"
+  LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: "INFO"
+  LOGGING_LEVEL_IO_HEXLET_PROJECT_DEVOPS_DEPLOY: "INFO"
+  JAVA_OPTS: "-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError"
+  # Без бакета приложение хранит картинки локально в поде (см. README, «Изменения в приложении»)
+  STORAGE_S3_BUCKET: ""
+  STORAGE_S3_REGION: "ru-central1"
+  STORAGE_S3_ENDPOINT: "https://storage.yandexcloud.net"

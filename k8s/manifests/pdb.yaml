@@ -1,0 +1,14 @@
+# При drain ноды (обновление node group) хотя бы один под остаётся в работе.
+# minAvailable меньше числа реплик, иначе drain встанет.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: bulletin-board
+  namespace: bulletin-board
+  labels:
+    app.kubernetes.io/name: bulletin-board
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bulletin-board

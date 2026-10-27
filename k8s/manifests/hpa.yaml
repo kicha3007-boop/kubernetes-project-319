@@ -1,0 +1,28 @@
+# Масштабирование по CPU: 2..5 реплик, цель — 70% от requests.cpu.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: bulletin-board
+  namespace: bulletin-board
+  labels:
+    app.kubernetes.io/name: bulletin-board
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: bulletin-board
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    # JVM на старте кратко грузит CPU — на всплеск реагируем не сразу
+    scaleUp:
+      stabilizationWindowSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300

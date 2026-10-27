@@ -1,0 +1,9 @@
+# metrics-server нужен HPA (метрики CPU/памяти подов).
+# В kind сертификаты kubelet самоподписанные, поэтому --kubelet-insecure-tls.
+# В Managed Kubernetes Yandex metrics-server уже установлен, ставить не нужно.
+args:
+  - --kubelet-insecure-tls
+resources:
+  requests:
+    cpu: 20m
+    memory: 48Mi

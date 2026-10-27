@@ -1,0 +1,20 @@
+# Локальный кластер kind: 1 control-plane + 2 рабочие ноды (как node group из 2 нод в облаке).
+# ingress-nginx слушает hostPort 80/443 на control-plane, они проброшены на 18080/18443 хоста.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: p319
+nodes:
+  - role: control-plane
+    labels:
+      ingress-ready: "true"
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 18080
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 18443
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+  - role: worker
+  - role: worker
