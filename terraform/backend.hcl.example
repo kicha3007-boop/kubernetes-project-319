@@ -1,0 +1,7 @@
+# Частичная конфигурация S3-бекенда. Скопируйте в backend.hcl (он в .gitignore)
+# и подставьте значения, которые выдала команда `make tf-bootstrap`:
+#   terraform init -backend-config=backend.hcl
+bucket     = "bulletin-board-tfstate-XXXXXX"
+key        = "bulletin-board/terraform.tfstate"
+access_key = "YCAJ..."
+secret_key = "YCP..."

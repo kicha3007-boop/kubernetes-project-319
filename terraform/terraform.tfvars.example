@@ -1,0 +1,8 @@
+# Скопируйте в terraform.tfvars (он в .gitignore) и подставьте свои значения.
+cloud_id  = "b1g..."
+folder_id = "b1g..."
+
+# Необязательные параметры (значения по умолчанию — в variables.tf)
+# default_zone          = "ru-central1-a"
+# node_count            = 2
+# k8s_api_allowed_cidrs = ["203.0.113.10/32"]
