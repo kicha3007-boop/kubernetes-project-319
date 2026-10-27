@@ -131,6 +131,8 @@ ESO + Reloader + kube-prometheus-stack занимают около **4–4.5 Г�
 make local-up
 ```
 
+Проверено: кластер с нуля (инструменты уже установлены) — ~12 минут, `exit 0` — [docs/evidence/00-make-local-up.txt](docs/evidence/00-make-local-up.txt).
+
 То же по шагам:
 
 ```bash

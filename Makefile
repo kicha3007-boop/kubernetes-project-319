@@ -25,6 +25,8 @@ METRICS_SERVER_VERSION   ?= 3.14.0
 ESO_VERSION              ?= 2.14.0
 RELOADER_VERSION         ?= 2.2.18
 KPS_VERSION              ?= 92.14.0
+# kube-prometheus-stack берётся из OCI-реестра: index.yaml на github.io отвечает нестабильно
+KPS_CHART                ?= oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack
 
 # kind не должен передавать нодам прокси хоста (127.0.0.1:port внутри ноды недоступен)
 NO_PROXY_ENV := env -u HTTP_PROXY -u HTTPS_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u no_proxy
@@ -99,7 +101,6 @@ helm-repos: ## Подключить репозитории сторонних ч
 	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
 	helm repo add external-secrets https://charts.external-secrets.io
 	helm repo add stakater https://stakater.github.io/stakater-charts
-	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo update
 
 addons: helm-repos ## kind: ingress-nginx, metrics-server, ESO, Reloader
@@ -211,7 +212,7 @@ yc-rotate: ## YC: ротация пароля БД через Lockbox (NEW_PASSW
 # --- Мониторинг ------------------------------------------------------------------------------
 .PHONY: monitoring-install monitoring-yc grafana-password
 monitoring-install: helm-repos ## kind: kube-prometheus-stack (Prometheus, Alertmanager, Grafana)
-	helm upgrade --install kps prometheus-community/kube-prometheus-stack --version $(KPS_VERSION) \
+	helm upgrade --install kps $(KPS_CHART) --version $(KPS_VERSION) \
 	  -n monitoring --create-namespace -f k8s/addons/kube-prometheus-stack-kind.yaml --wait --timeout 15m
 	helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --version $(INGRESS_NGINX_VERSION) \
 	  -n ingress-nginx -f k8s/addons/ingress-nginx-kind.yaml \

@@ -27,7 +27,7 @@ kubectl -n monitoring create secret generic yc-prometheus-api-key-env \
   --from-literal=YC_PROMETHEUS_API_KEY="$API_KEY" --dry-run=client -o yaml | kubectl apply -f -
 
 sed "s/<WORKSPACE_ID>/${WORKSPACE_ID}/g" k8s/addons/kube-prometheus-stack-yc.yaml > "$tmp/kps.yaml"
-helm upgrade --install kps prometheus-community/kube-prometheus-stack --version "$KPS_VERSION" \
+helm upgrade --install kps oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack --version "$KPS_VERSION" \
   -n monitoring -f "$tmp/kps.yaml" --wait --timeout 15m
 
 kubectl create namespace logging --dry-run=client -o yaml | kubectl apply -f -

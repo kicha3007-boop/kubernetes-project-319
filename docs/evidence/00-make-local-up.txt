@@ -1,0 +1,50 @@
+# Полный локальный стенд с нуля одной командой (kind, 2026-10-27)
+$ time make local-up      # 15:48:11 -> 16:00:05, ~12 минут, exit 0 (включая docker build --no-cache)
+(хвост лога)
+kubectl -n bulletin-board rollout status deploy/bulletin-board --timeout=300s
+deployment "bulletin-board" successfully rolled out
+make[1]: Leaving directory 'H:/devs/hsb/hsb-utils/hexlet/projects/kubernetes-project-319'
+Приложение: http://bulletin-board.localhost:18080  Grafana: http://grafana.localhost:18080
+
+$ make k8s-status
+NAME                             READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                                        SELECTOR
+deployment.apps/bulletin-board   2/2     2            2           49s   app          ghcr.io/kicha3007-boop/bulletin-board:1.1.0   app.kubernetes.io/instance=bulletin-board,app.kubernetes.io/name=bulletin-board
+
+NAME                                  READY   STATUS    RESTARTS   AGE   IP            NODE           NOMINATED NODE   READINESS GATES
+pod/bulletin-board-7d97dbd7b4-8qc8t   1/1     Running   0          49s   10.244.1.12   p319-worker2   <none>           <none>
+pod/bulletin-board-7d97dbd7b4-9jpzq   1/1     Running   0          49s   10.244.3.10   p319-worker    <none>           <none>
+
+NAME                     TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)           AGE   SELECTOR
+service/bulletin-board   ClusterIP   10.96.135.191   <none>        80/TCP,9090/TCP   49s   app.kubernetes.io/instance=bulletin-board,app.kubernetes.io/name=bulletin-board
+
+NAME                                       CLASS   HOSTS                      ADDRESS   PORTS   AGE
+ingress.networking.k8s.io/bulletin-board   nginx   bulletin-board.localhost             80      49s
+
+NAME                                                 REFERENCE                   TARGETS              MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/bulletin-board   Deployment/bulletin-board   cpu: <unknown>/70%   2         5         2          49s
+
+NAME                                        MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
+poddisruptionbudget.policy/bulletin-board   1               N/A               1                     49s
+
+$ make eso-status
+NAME                                             AGE   STATUS   CAPABILITIES   READY
+secretstore.external-secrets.io/bulletin-board   49s   Valid    ReadWrite      True
+
+NAME                                                STORETYPE     STORE            REFRESH INTERVAL   STATUS         READY   LAST SYNC
+externalsecret.external-secrets.io/bulletin-board   SecretStore   bulletin-board   15s                SecretSynced   True    3s
+{"meta.helm.sh/release-name":"bulletin-board","meta.helm.sh/release-namespace":"bulletin-board","reconcile.external-secrets.io/data-hash":"421da0c66f9a8e9b3464656aad7fde15cfce0b6751ccfc9c76e46a2e"}
+
+$ make helm-test
+TEST SUITE:     bulletin-board-test
+Last Started:   Tue Oct 27 16:00:23 2026
+Last Completed: Tue Oct 27 16:00:30 2026
+Phase:          Succeeded
+
+$ curl http://bulletin-board.localhost:18080/api/bulletins?perPage=1
+HTTP 200
+$ curl http://grafana.localhost:18080/api/health
+{
+  "database": "ok",
+  "version": "13.2.4",
+  "commit": "0e79aef9d91abf3bdadae9af15763029072fb45b"
+}

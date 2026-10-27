@@ -51,9 +51,13 @@ make grafana-password
 - [prometheus-alerts.png](screenshots/prometheus-alerts.png) — правила `bulletin-board.*` загружены;
 - [prometheus-alerts-firing.png](screenshots/prometheus-alerts-firing.png) — проверка алертов: PostgreSQL остановлен,
   `BulletinBoardHigh5xxRate` и `BulletinBoardHighLatencyP95` перешли в pending → firing;
+- [alertmanager.png](screenshots/alertmanager.png) — сработавшие алерты дошли до Alertmanager;
 - [grafana-dashboard-incident.png](screenshots/grafana-dashboard-incident.png) — тот же инцидент на дашборде.
 
-Вывод проверки алертов — [evidence/05-alerts.txt](evidence/05-alerts.txt).
+Вывод проверки алертов — [evidence/05-alerts.txt](evidence/05-alerts.txt). `BulletinBoardIngress5xx`
+в этом сценарии не сработал, и это ожидаемо: клиент (curl с таймаутом 5 с) обрывал запрос раньше,
+чем приложение отвечало 500 через 30 с, поэтому ingress-nginx записал коды 499, а не 5xx — это видно на
+панели «Ingress-nginx: запросы по кодам ответа».
 
 ## Yandex Cloud — сконфигурировано, не запускалось
 
