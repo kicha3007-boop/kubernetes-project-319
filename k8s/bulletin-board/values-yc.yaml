@@ -1,0 +1,77 @@
+# Окружение «Managed Kubernetes в Yandex Cloud» (make helm-install ENV=yc).
+# Значения <...> подставляются из terraform output; их можно не править в файле,
+# а передать через --set (так делает Makefile):
+#   --set image.tag=$(TAG)
+#   --set externalSecrets.yandexlockbox.lockboxSecretId=$(terraform output -raw lockbox_secret_id)
+#   --set env.STORAGE_S3_BUCKET=$(terraform output -raw s3_bucket)
+#   --set ingress.host=bulletin-board.<EXTERNAL-IP>.nip.io
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/kicha3007-boop/bulletin-board
+  # Конкретный тег релиза (git sha или semver), не latest
+  tag: "1.1.0"
+  pullPolicy: IfNotPresent
+
+# Если пакет GHCR приватный: kubectl create secret docker-registry ghcr ... и раскомментировать
+# imagePullSecrets:
+#   - name: ghcr
+
+ingress:
+  className: nginx
+  # Внешний IP балансировщика ingress-nginx: kubectl -n ingress-nginx get svc ingress-nginx-controller
+  host: ""
+
+env:
+  # SPRING_DATASOURCE_URL, логин/пароль БД и ключи S3 приходят из Lockbox
+  STORAGE_S3_BUCKET: ""
+  STORAGE_S3_REGION: "ru-central1"
+  STORAGE_S3_ENDPOINT: "https://storage.yandexcloud.net"
+
+secrets:
+  create: false
+
+externalSecrets:
+  enabled: true
+  provider: yandexlockbox
+  refreshInterval: 1m
+  yandexlockbox:
+    lockboxSecretId: ""
+    authSecretName: yc-auth
+    authSecretKey: authorized-key
+
+reloader:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 768Mi
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+# Реплики — строго на разных нодах, если нод хватает
+topologySpread:
+  enabled: true
+  maxSkew: 1
+  whenUnsatisfiable: ScheduleAnyway
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+  prometheusRule:
+    enabled: true
+  grafanaDashboard:
+    enabled: true

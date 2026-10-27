@@ -1,0 +1,110 @@
+{{- if .Values.monitoring.prometheusRule.enabled }}
+{{- $fullname := include "bulletin-board.fullname" . }}
+{{- $ns := .Release.Namespace }}
+{{- $rule := .Values.monitoring.prometheusRule }}
+{{- $ingress := default $fullname $rule.ingressName }}
+{{- $app := printf "namespace=\"%s\", service=\"%s\"" $ns $fullname }}
+# Алерты по доступности, производительности и нагрузке. Те же выражения
+# загружаются в Managed Prometheus (см. monitoring/yc/README.md).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "bulletin-board.labels" . | nindent 4 }}
+    {{- with $rule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: bulletin-board.availability
+      rules:
+        - alert: BulletinBoardDown
+          expr: sum(up{ {{ $app }} }) == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ни один под доски объявлений не отдаёт метрики"
+            description: "Все цели {{ $fullname }} в {{ $ns }} недоступны 2 минуты."
+        - alert: BulletinBoardHigh5xxRate
+          expr: |
+            sum(rate(http_server_requests_seconds_count{ {{ $app }}, status=~"5..", uri!~"/actuator.*"}[5m]))
+              /
+            clamp_min(sum(rate(http_server_requests_seconds_count{ {{ $app }}, uri!~"/actuator.*"}[5m])), 1e-9)
+              > {{ $rule.errorRateThreshold }}
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Доля ответов 5xx приложения выше {{ mulf $rule.errorRateThreshold 100 }}%"
+            description: "{{ "{{" }} $value | humanizePercentage {{ "}}" }} запросов к API завершаются ошибкой 5xx."
+        - alert: BulletinBoardIngress5xx
+          expr: |
+            sum(rate(nginx_ingress_controller_requests{ingress="{{ $ingress }}", status=~"5.."}[5m]))
+              /
+            clamp_min(sum(rate(nginx_ingress_controller_requests{ingress="{{ $ingress }}"}[5m])), 1e-9)
+              > {{ $rule.errorRateThreshold }}
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "ingress-nginx отдаёт 5xx по {{ $ingress }}"
+            description: "{{ "{{" }} $value | humanizePercentage {{ "}}" }} ответов ingress — 5xx (включая 502/503 при недоступных подах)."
+        - alert: BulletinBoardReplicasUnavailable
+          expr: |
+            kube_deployment_status_replicas_available{namespace="{{ $ns }}", deployment="{{ $fullname }}"}
+              <
+            kube_deployment_spec_replicas{namespace="{{ $ns }}", deployment="{{ $fullname }}"}
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Часть реплик {{ $fullname }} недоступна 10 минут"
+    - name: bulletin-board.performance
+      rules:
+        - alert: BulletinBoardHighLatencyP95
+          expr: |
+            histogram_quantile(0.95,
+              sum by (le) (rate(http_server_requests_seconds_bucket{ {{ $app }}, uri!~"/actuator.*"}[5m]))
+            ) > {{ $rule.latencyP95Seconds }}
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "p95 latency API выше {{ $rule.latencyP95Seconds }} с"
+            description: "95-й перцентиль времени ответа: {{ "{{" }} $value | humanizeDuration {{ "}}" }}."
+        - alert: BulletinBoardHighHeapUsage
+          expr: |
+            max by (pod) (
+              sum by (pod) (jvm_memory_used_bytes{ {{ $app }}, area="heap"})
+                /
+              sum by (pod) (jvm_memory_max_bytes{ {{ $app }}, area="heap"} > 0)
+            ) > 0.9
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Heap JVM в поде {{ "{{" }} $labels.pod {{ "}}" }} заполнен больше чем на 90%"
+    - name: bulletin-board.saturation
+      rules:
+        - alert: BulletinBoardPodRestarts
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="{{ $ns }}", pod=~"{{ $fullname }}-.*"}[15m])
+              > {{ $rule.restartsIn15m }}
+          labels:
+            severity: warning
+          annotations:
+            summary: "Под {{ "{{" }} $labels.pod {{ "}}" }} перезапускался больше {{ $rule.restartsIn15m }} раз за 15 минут"
+        - alert: BulletinBoardHPAMaxedOut
+          expr: |
+            kube_horizontalpodautoscaler_status_current_replicas{namespace="{{ $ns }}", horizontalpodautoscaler="{{ $fullname }}"}
+              >=
+            kube_horizontalpodautoscaler_spec_max_replicas{namespace="{{ $ns }}", horizontalpodautoscaler="{{ $fullname }}"}
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "HPA {{ $fullname }} упёрся в maxReplicas 15 минут — нужно больше нод или реплик"
+{{- end }}

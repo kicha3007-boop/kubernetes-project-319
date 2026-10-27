@@ -1,0 +1,19 @@
+Релиз {{ .Release.Name }} (ревизия {{ .Release.Revision }}) в namespace {{ .Release.Namespace }}.
+Образ: {{ .Values.image.repository }}:{{ include "bulletin-board.imageTag" . }}
+
+Статус выката:
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "bulletin-board.fullname" . }}
+{{- if .Values.ingress.enabled }}
+
+Приложение: http://{{ default "<EXTERNAL-IP ingress-nginx>" .Values.ingress.host }}/
+{{- end }}
+
+Временный доступ без ingress:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "bulletin-board.fullname" . }} 18085:{{ .Values.service.port }}
+{{- if .Values.externalSecrets.enabled }}
+
+Секреты синхронизирует ESO ({{ .Values.externalSecrets.provider }}), проверка:
+  kubectl -n {{ .Release.Namespace }} get externalsecret,secretstore
+{{- end }}
+
+Откат: helm -n {{ .Release.Namespace }} rollback {{ .Release.Name }} <REVISION>   (история: helm history)

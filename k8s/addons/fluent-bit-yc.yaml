@@ -1,0 +1,65 @@
+# Fluent Bit (чарт fluent/fluent-bit) с плагином Yandex Cloud Logging:
+# логи подов приложения и ingress-nginx -> лог-группа из terraform (retention 72h).
+# Плейсхолдеры <LOG_GROUP_ID>, <CLUSTER_ID> подставляет scripts/monitoring-yc.sh;
+# авторизованный ключ SA (роль logging.writer) лежит в Secret logging/fluentbit-sa-key.
+# ВНИМАНИЕ: файл не применялся к реальному облаку (облачный стенд не разворачивался).
+image:
+  repository: cr.yandex/yc/fluent-bit-plugin-yandex
+  tag: v2.1.1-fluent-bit-2.1.7
+
+extraVolumes:
+  - name: sa-key
+    secret:
+      secretName: fluentbit-sa-key
+extraVolumeMounts:
+  - name: sa-key
+    mountPath: /etc/yc
+    readOnly: true
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 48Mi
+  limits:
+    memory: 128Mi
+
+config:
+  inputs: |
+    [INPUT]
+        Name              tail
+        Tag               kube.*
+        # Фильтр источников: только приложение и ingress-nginx
+        Path              /var/log/containers/bulletin-board-*_bulletin-board_*.log,/var/log/containers/ingress-nginx-controller-*_ingress-nginx_*.log
+        multiline.parser  cri
+        Mem_Buf_Limit     16MB
+        Skip_Long_Lines   On
+        Refresh_Interval  10
+
+  filters: |
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Merge_Log           On
+        Keep_Log            Off
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude On
+
+    # Шум health-проб не отправляем
+    [FILTER]
+        Name    grep
+        Match   kube.*
+        Exclude message /actuator/health
+
+  outputs: |
+    [OUTPUT]
+        Name            yc-logging
+        Match           kube.*
+        group_id        <LOG_GROUP_ID>
+        resource_type   k8s-cluster
+        resource_id     <CLUSTER_ID>
+        stream_name     {kubernetes/namespace_name}
+        message_key     message
+        level_key       level
+        default_level   INFO
+        default_payload {"cluster": "<CLUSTER_ID>"}
+        authorization   iam-key-file:/etc/yc/key.json

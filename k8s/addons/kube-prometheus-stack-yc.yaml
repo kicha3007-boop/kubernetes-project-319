@@ -1,0 +1,73 @@
+# kube-prometheus-stack в Managed Kubernetes: Prometheus внутри кластера собирает метрики
+# (ServiceMonitor приложения, ingress-nginx, kube-state-metrics, cAdvisor) и отправляет
+# их remote_write в Yandex Managed Service for Prometheus. Хранение, дашборды и алерты —
+# в Yandex Monitoring; локальный retention короткий.
+#
+# Плейсхолдеры подставляет scripts/monitoring-yc.sh:
+#   <WORKSPACE_ID> — ID воркспейса Managed Prometheus (Monitoring -> Prometheus);
+#   Secret monitoring/yc-prometheus-api-key создаётся из terraform output prometheus_api_key.
+# ВНИМАНИЕ: файл не применялся к реальному облаку (облачный стенд не разворачивался).
+fullnameOverride: kps
+
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+defaultRules:
+  create: true
+  rules:
+    etcd: false
+    kubeScheduler: false
+    kubeControllerManager: false
+    kubeProxy: false
+
+prometheus:
+  prometheusSpec:
+    retention: 6h
+    scrapeInterval: 30s
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    externalLabels:
+      cluster: bulletin-board-k8s
+    remoteWrite:
+      - url: https://monitoring.api.cloud.yandex.net/prometheus/workspaces/<WORKSPACE_ID>/api/v1/write
+        authorization:
+          type: Bearer
+          credentials:
+            name: yc-prometheus-api-key
+            key: api-key
+        queueConfig:
+          maxSamplesPerSend: 2000
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+
+alertmanager:
+  enabled: true
+
+grafana:
+  enabled: true
+  # Дашборд приложения из чарта (ConfigMap с меткой grafana_dashboard=1)
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+  # Второй источник — сам Managed Prometheus (долгое хранение)
+  additionalDataSources:
+    - name: Yandex Managed Prometheus
+      type: prometheus
+      url: https://monitoring.api.cloud.yandex.net/prometheus/workspaces/<WORKSPACE_ID>
+      jsonData:
+        httpHeaderName1: Authorization
+      secureJsonData:
+        httpHeaderValue1: "Bearer ${YC_PROMETHEUS_API_KEY}"
+  envFromSecret: yc-prometheus-api-key-env

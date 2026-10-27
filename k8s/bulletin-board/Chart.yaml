@@ -1,0 +1,17 @@
+apiVersion: v2
+name: bulletin-board
+description: Доска объявлений (Spring Boot + React Admin) — Deployment, Service, Ingress, HPA, PDB, секреты из Lockbox через External Secrets, мониторинг
+type: application
+# Версия чарта меняется при изменении шаблонов, appVersion — тег образа по умолчанию
+version: 1.1.0
+appVersion: "1.1.0"
+home: https://github.com/kicha3007-boop/kubernetes-project-319
+sources:
+  - https://github.com/kicha3007-boop/kubernetes-project-319
+  - https://github.com/Hexlet-components/project-devops-deploy
+maintainers:
+  - name: Kichigin Sergey
+keywords:
+  - spring-boot
+  - yandex-cloud
+  - lockbox

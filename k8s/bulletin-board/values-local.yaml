@@ -1,0 +1,48 @@
+# Окружение «локально в kind» (make helm-install ENV=local).
+# Секреты приходят через External Secrets Operator из «эмулятора Lockbox» —
+# Secret lockbox-emulator/bulletin-board-app, который создаёт make eso-seed
+# (в git его нет). Поток тот же, что в облаке: источник -> ESO -> Secret -> Reloader.
+
+image:
+  tag: "1.1.0"
+  pullPolicy: IfNotPresent
+
+ingress:
+  host: bulletin-board.localhost
+
+env:
+  # Локальный PostgreSQL из k8s/local/postgres.yaml (не секрет: адрес внутри кластера)
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.bulletin-db.svc.cluster.local:5432/bulletins"
+  STORAGE_S3_BUCKET: ""
+
+secrets:
+  create: false
+
+externalSecrets:
+  enabled: true
+  provider: kubernetes
+  # Короткий интервал, чтобы ротацию было видно быстро
+  refreshInterval: 15s
+  kubernetes:
+    remoteNamespace: lockbox-emulator
+    remoteSecret: bulletin-board-app
+
+reloader:
+  enabled: true
+
+# В kind всего 4 CPU на всё — запросы поменьше
+resources:
+  requests:
+    cpu: 200m
+    memory: 384Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+  prometheusRule:
+    enabled: true
+  grafanaDashboard:
+    enabled: true

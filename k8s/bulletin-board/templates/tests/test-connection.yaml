@@ -1,0 +1,39 @@
+# helm test <релиз>: под с curl проверяет, что сервис отвечает изнутри кластера
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "bulletin-board.fullname" . }}-test
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bulletin-board.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 100
+  containers:
+    - name: curl
+      image: {{ .Values.tests.image }}
+      args:
+        - --fail
+        - --silent
+        - --show-error
+        - --max-time
+        - "10"
+        - --output
+        - /dev/null
+        - http://{{ include "bulletin-board.fullname" . }}:{{ .Values.service.port }}/api/bulletins?perPage=1
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 32Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]

@@ -1,0 +1,180 @@
+# Значения по умолчанию. Окружения переопределяют их файлами:
+#   values-local.yaml — kind на своей машине;
+#   values-yc.yaml    — Managed Kubernetes в Yandex Cloud.
+# Порядок применения: values.yaml -> -f values-<env>.yaml -> --set (последний выигрывает).
+# Реальных секретов здесь нет и быть не должно — только плейсхолдеры и ссылки.
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/kicha3007-boop/bulletin-board
+  # Пусто — берётся appVersion из Chart.yaml. Тег latest чарт не примет.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Namespace релиза создаёт сам helm (--create-namespace): в нём же хранится история
+# релизов, поэтому он должен существовать до установки ресурсов чарта.
+# create: true — только для helm template | kubectl apply (рендер в чистые манифесты).
+namespace:
+  create: false
+
+# Несекретная конфигурация -> ConfigMap -> переменные окружения контейнера
+env:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_SHUTDOWN: "graceful"
+  SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: "20s"
+  LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: "INFO"
+  LOGGING_LEVEL_IO_HEXLET_PROJECT_DEVOPS_DEPLOY: "INFO"
+  JAVA_OPTS: "-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError"
+  # Имя бакета не секрет: terraform output s3_bucket. Пусто — картинки хранятся в поде.
+  STORAGE_S3_BUCKET: ""
+  STORAGE_S3_REGION: "ru-central1"
+  STORAGE_S3_ENDPOINT: "https://storage.yandexcloud.net"
+
+# Секреты приложения. Имя Secret: <fullname>-secrets (или secrets.existingSecret).
+# Ключи совпадают с переменными окружения Spring Boot:
+#   SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD,
+#   STORAGE_S3_ACCESSKEY, STORAGE_S3_SECRETKEY
+secrets:
+  # true — Secret создаёт сам чарт из secrets.values (только для отладки).
+  # В рабочих окружениях false + externalSecrets.enabled=true.
+  create: true
+  existingSecret: ""
+  values:
+    SPRING_DATASOURCE_USERNAME: "change-me"
+    SPRING_DATASOURCE_PASSWORD: "change-me"
+
+# External Secrets Operator: Secret создаётся оператором из внешнего хранилища.
+externalSecrets:
+  enabled: false
+  # Как часто ESO перечитывает источник; за это время ротация доезжает до кластера
+  refreshInterval: 1m
+  # yandexlockbox — Yandex Lockbox (облако); kubernetes — Secret в другом namespace
+  # (локальный «эмулятор Lockbox» в kind); fake — статические значения (тесты)
+  provider: yandexlockbox
+  yandexlockbox:
+    # terraform output -raw lockbox_secret_id
+    lockboxSecretId: ""
+    # Secret с авторизованным ключом SA ESO (terraform output -raw eso_sa_key_json)
+    authSecretName: yc-auth
+    authSecretKey: authorized-key
+  kubernetes:
+    remoteNamespace: lockbox-emulator
+    remoteSecret: bulletin-board-app
+  fake:
+    data: {}
+
+# Reloader (stakater) перезапускает поды RollingUpdate-ом при изменении Secret
+reloader:
+  enabled: true
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+  managementPort: 9090
+
+ingress:
+  enabled: true
+  className: nginx
+  host: ""
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-next-upstream: "error timeout http_502 http_503 http_504"
+  tls: []
+
+strategy:
+  maxSurge: 1
+  maxUnavailable: 0
+
+minReadySeconds: 5
+revisionHistoryLimit: 5
+terminationGracePeriodSeconds: 45
+# Пауза перед SIGTERM: под успевает выйти из endpoints/ingress до остановки
+preStopSleepSeconds: 10
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 384Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+probes:
+  startup:
+    path: /actuator/health/liveness
+    periodSeconds: 5
+    failureThreshold: 30
+  readiness:
+    path: /actuator/health/readiness
+    periodSeconds: 5
+    failureThreshold: 3
+  liveness:
+    path: /actuator/health/liveness
+    periodSeconds: 10
+    failureThreshold: 3
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+
+# Разнос реплик по нодам
+topologySpread:
+  enabled: true
+  maxSkew: 1
+  whenUnsatisfiable: ScheduleAnyway
+
+pdb:
+  enabled: true
+  # Должно быть меньше минимального числа реплик, иначе drain ноды встанет
+  minAvailable: 1
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  scaleUpStabilizationSeconds: 60
+  scaleDownStabilizationSeconds: 300
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+
+# Мониторинг (нужны CRD prometheus-operator: kube-prometheus-stack)
+monitoring:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    path: /actuator/prometheus
+    labels: {}
+  prometheusRule:
+    enabled: false
+    labels: {}
+    # Пороги алертов
+    errorRateThreshold: 0.05
+    latencyP95Seconds: 0.5
+    restartsIn15m: 2
+    # Имя ingress-объекта в метриках ingress-nginx (по умолчанию — fullname)
+    ingressName: ""
+  grafanaDashboard:
+    enabled: false
+    labels:
+      grafana_dashboard: "1"
+
+# helm test: проверка, что сервис отвечает изнутри кластера
+tests:
+  image: mirror.gcr.io/curlimages/curl:8.11.1

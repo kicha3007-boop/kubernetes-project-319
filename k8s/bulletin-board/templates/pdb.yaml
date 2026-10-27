@@ -1,0 +1,18 @@
+{{- if .Values.pdb.enabled }}
+{{- $minReplicas := ternary .Values.hpa.minReplicas .Values.replicaCount .Values.hpa.enabled | int }}
+{{- if ge (int .Values.pdb.minAvailable) $minReplicas }}
+{{- fail "pdb.minAvailable должен быть меньше числа реплик, иначе drain ноды заблокируется" }}
+{{- end }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "bulletin-board.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bulletin-board.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "bulletin-board.selectorLabels" . | nindent 6 }}
+{{- end }}

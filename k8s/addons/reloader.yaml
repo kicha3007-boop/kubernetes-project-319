@@ -1,0 +1,10 @@
+# Reloader перезапускает Deployment (RollingUpdate, без простоя), когда меняется
+# Secret или ConfigMap, на которые указывает аннотация пода. Так ротация секрета
+# в Lockbox доезжает до приложения без ручных действий.
+reloader:
+  watchGlobally: true
+  deployment:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
