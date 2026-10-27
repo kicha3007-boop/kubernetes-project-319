@@ -1,0 +1,8 @@
+# В контекст сборки попадает только код приложения
+*
+!app/
+app/.gradle
+app/build
+app/frontend/node_modules
+app/frontend/dist
+app/src/main/resources/static

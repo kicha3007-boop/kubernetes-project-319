@@ -1,0 +1,39 @@
+# Локальная проверка образа в профиле prod (PostgreSQL вместо H2), без Kubernetes.
+#   make compose-up    -> http://localhost:18090 (API), http://localhost:19090/actuator/health
+#   make compose-down
+# Пароль БД — локальная заглушка; переопределяется переменной POSTGRES_PASSWORD.
+name: p319
+
+services:
+  db:
+    image: mirror.gcr.io/library/postgres:17-alpine
+    environment:
+      POSTGRES_DB: bulletins
+      POSTGRES_USER: bulletins
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-dev-only}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bulletins -d bulletins"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    image: ${IMAGE:-ghcr.io/kicha3007-boop/bulletin-board}:${TAG:-local}
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/bulletins
+      SPRING_DATASOURCE_USERNAME: bulletins
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-local-dev-only}
+      JAVA_OPTS: -XX:MaxRAMPercentage=75 -Xmx384m
+    ports:
+      - "18090:8080"
+      - "19090:9090"
+
+volumes:
+  db-data:

@@ -1,0 +1,35 @@
+# Terraform: state, планы, кеш провайдеров и локальные значения — не в git
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+terraform/backend.hcl
+terraform/terraform.tfvars
+*.auto.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Ключи и kubeconfig
+*.pem
+*.key
+.eso-key.json
+key.json
+kubeconfig*
+.env
+
+# Локальные артефакты
+probe.log
+*.log
+.idea/
+.vscode/
+.DS_Store
+
+# Helm
+k8s/**/charts/*.tgz
